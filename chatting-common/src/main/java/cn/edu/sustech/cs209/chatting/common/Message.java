@@ -1,6 +1,13 @@
 package cn.edu.sustech.cs209.chatting.common;
 
-public class Message {
+import java.io.Serializable;
+
+/**
+ * A class representing a message.
+ */
+public class Message implements Serializable{
+
+    private long msgID;
 
     private Long timestamp;
 
@@ -8,13 +15,43 @@ public class Message {
 
     private String sendTo;
 
+    private String groupName;
+
     private String data;
 
-    public Message(Long timestamp, String sentBy, String sendTo, String data) {
+    public Message(long msgID, Long timestamp, String sentBy, String sendTo, String groupName, String data) {
+        this.msgID = msgID;
         this.timestamp = timestamp;
         this.sentBy = sentBy;
         this.sendTo = sendTo;
+        this.groupName = groupName;
         this.data = data;
+    }
+    public Message(String sentBy, String sendTo, String groupName, String data) {
+        this.msgID = -1;
+        this.timestamp = System.currentTimeMillis();
+        this.sentBy = sentBy;
+        this.sendTo = sendTo;
+        this.groupName = groupName;
+        this.data = data;
+    }
+
+    public Message(String sentBy, String sendTo, String data) {
+        this.msgID = -1;
+        this.timestamp = System.currentTimeMillis();
+        this.sentBy = sentBy;
+        this.sendTo = sendTo;
+        this.groupName = "Private Chat";
+        this.data = data;
+    }
+
+    public Message(){
+        this.msgID = -1;
+        this.timestamp = System.currentTimeMillis();
+        this.sentBy = "anonymous";
+        this.sendTo = "anonymous";
+        this.groupName = "Private Chat";
+        this.data = "empty";
     }
 
     public Long getTimestamp() {
@@ -29,7 +66,15 @@ public class Message {
         return sendTo;
     }
 
+    public String getGroupName() {
+        return groupName;
+    }
+
     public String getData() {
         return data;
+    }
+
+    public void setMsgID(long msgID) {
+        this.msgID = msgID;
     }
 }

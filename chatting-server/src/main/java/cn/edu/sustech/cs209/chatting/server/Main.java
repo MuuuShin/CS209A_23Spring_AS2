@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.net.*;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -25,19 +26,52 @@ public class Main {
 
 
     public static void main(String[] args) {
-        initSQL();
+        System.out.println("Server starting...");
+        try {
+            initSQL();
+        } catch (Exception e) {
+            System.out.println("Server failed in running");
+            e.printStackTrace();
+            return;
+        }
         System.out.println("Server started");
-        //1.创建ServerSocket
+        //创建服务器端管理线程
+        Thread serverManager = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    Scanner scanner = new Scanner(System.in);
+                    String command = scanner.nextLine();
+                    System.out.println("Command: " + command);
+                    if (command.equals("exit")) {
+                        System.out.println("Server stopping...");
+                        try {
+                            connection.close();
+                            for (Map.Entry<String, ServerThread> entry : threadList.entrySet()) {
+                                entry.getValue().close();
+                            }
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                        }
+                        System.out.println("Server stopped");
+                        System.exit(0);
+                    }
+                }
+            }
+        });
+        serverManager.start();
+        //创建ServerSocket
         try (ServerSocket serverSocket = new ServerSocket(6868)) {
-            //2.等待客户端连接
+            //等待客户端连接
             while (true) {
                 Socket socket = serverSocket.accept();
                 System.out.println("Client connected:");
+                System.out.println("Now socket number: " + threadList.size() + 1);
                 //输出客户端的IP地址
-                System.out.println(socket.getInetAddress().getHostAddress() + "\n");
-                //3.创建线程
+                System.out.println("Client: " + socket.getInetAddress().getHostAddress() + ":"+socket.getPort());
+                //创建线程
                 ServerThread thread = new ServerThread(socket);
-                //4.启动线程
+                //启动线程
                 thread.start();
             }
         } catch (IOException e) {
@@ -48,7 +82,6 @@ public class Main {
 
     private static void initSQL() {
         try {
-            System.out.println("Starting server...");
             //注册驱动
             Class.forName("org.sqlite.JDBC");
             //获取连接
@@ -106,6 +139,10 @@ public class Main {
         return userList.getOrDefault(username, null);
     }
 
+    public static Boolean hasOnlineUser(String username) {
+        return onlineUserList.contains(username);
+    }
+
     public static List<Group> getGroupIncludingUser(String username) {
         List<Group> groups = new ArrayList<>();
         for (Map.Entry<String, Group> entry : groupList.entrySet()) {
@@ -137,15 +174,14 @@ public class Main {
 //    }
 
     public static void addThread(String username, ServerThread thread) {
-        threadList.put(username, thread);
-        addOnlineUser(getUser(username));
         Message msg = new Message("server", username, "ONLINE");
         serverBroadcast(msg);
+        threadList.put(username, thread);
     }
 
-    private static void addOnlineUser(User user) {
+    public static void addOnlineUser(String username) {
         onlineUserListLock.lock();
-        onlineUserList.add(user.getUsername());
+        onlineUserList.add(username);
         onlineUserListLock.unlock();
     }
 
@@ -195,7 +231,7 @@ public class Main {
             resultSet.close();
             return msg;
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            e.printStackTrace();
         }
         return null;
     }
@@ -212,7 +248,7 @@ public class Main {
             resultSet.close();
             return user;
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            e.printStackTrace();
         }
         return null;
     }
@@ -228,14 +264,16 @@ public class Main {
             groupList.put(groupName, group);
             resultSet.close();
             for (String user : users) {
-                Message msg = new Message("server", user, groupName, "INVITE");
+                //Message msg = new Message("server", user, groupName, "INVITE");
                 if (threadList.containsKey(user)) {
-                    threadList.get(user).sendMsg(msg);
+                    //threadList.get(user).sendMsg(msg);
+                    threadList.get(user).sendGroup(group);
+                    break;
                 }
             }
             return group;
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            e.printStackTrace();
         }
         return null;
     }

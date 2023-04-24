@@ -3,6 +3,9 @@ package cn.edu.sustech.cs209.chatting.common;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Only used for authorization.
+ */
 public class User {
     private long userID;
     private String username;

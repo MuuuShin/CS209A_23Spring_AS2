@@ -94,6 +94,10 @@ public class Group implements Serializable {
         return userList;
     }
 
+    public Long getTimestamp() {
+        return timestamp;
+    }
+
     public int getUserNum() {
         return userNum;
     }

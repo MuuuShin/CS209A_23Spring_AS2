@@ -5,9 +5,6 @@ import cn.edu.sustech.cs209.chatting.common.Message;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
-
 import static cn.edu.sustech.cs209.chatting.client.Controller.*;
 
 /**
@@ -15,7 +12,7 @@ import static cn.edu.sustech.cs209.chatting.client.Controller.*;
  */
 public class ClientReceiveThread implements Runnable {
     private String username;
-    private ObjectInputStream in;
+    private final ObjectInputStream in;
 
 
     public ClientReceiveThread(ObjectInputStream in) {

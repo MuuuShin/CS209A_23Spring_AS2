@@ -8,11 +8,11 @@ import javafx.scene.layout.HBox;
 import java.util.List;
 
 public class chatListHBox extends HBox {
-    private String groupName;
-    private List<String> members;
+    private final String groupName;
+    private final List<String> members;
     private Long timestamp;
-    private Label markLabel;
-    private Label infoLabel;
+    private final Label markLabel;
+    private final Label infoLabel;
 
     public String getGroupName() {
         return groupName;
@@ -59,15 +59,13 @@ public class chatListHBox extends HBox {
                 members.sort(String::compareTo);
                 info = members.get(0) + " " + members.get(1) + " " + members.get(2) + "... (" + members.size() + ")";
             }
+            this.infoLabel.setText(info);
         }
         this.getChildren().addAll(markLabel, infoLabel);
     }
 
     public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
-        Platform.runLater(() -> {
-            this.infoLabel.setText(groupName);
-        });
     }
 
     public void setMark(Boolean mark) {

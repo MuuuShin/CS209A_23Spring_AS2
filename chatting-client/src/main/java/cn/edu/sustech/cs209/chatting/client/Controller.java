@@ -52,13 +52,13 @@ public class Controller implements Initializable {
 
     private static ClientReceiveThread clientReceiveThread;
     private static ClientSendThread clientSendThread;
-    private static ConcurrentHashMap<String, Group> groupMap = new ConcurrentHashMap<>();
-    private static List<Group> groupList = new ArrayList<>();
-    private static List<String> onlineUserList = new ArrayList<>();
+    private static final ConcurrentHashMap<String, Group> groupMap = new ConcurrentHashMap<>();
+    private static final List<Group> groupList = new ArrayList<>();
+    private static final List<String> onlineUserList = new ArrayList<>();
 
     private static int onlineUserNum = 0;
-    private static ReentrantLock chatListLock = new ReentrantLock();
-    private static ReentrantLock onlineUserListLock = new ReentrantLock();
+    private static final ReentrantLock chatListLock = new ReentrantLock();
+    private static final ReentrantLock onlineUserListLock = new ReentrantLock();
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
@@ -163,7 +163,6 @@ public class Controller implements Initializable {
                         alert.setHeaderText("null");
                         alert.setContentText(message.getData().substring(4));
                         alert.showAndWait();
-                        continue;
                     } else {
                         System.out.println("unknown error");
                         Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -236,11 +235,7 @@ public class Controller implements Initializable {
                         chatContentList.refresh();
                         chatContentList.scrollTo(chatContentList.getItems().size() - 1);
                         onlineUserListLock.lock();
-                        if(onlineUserList.contains(newValue.getInfoLabelText())) {
-                            sendButton.setDisable(false);
-                        }else{
-                            sendButton.setDisable(true);
-                        }
+                        sendButton.setDisable(!onlineUserList.contains(newValue.getInfoLabelText()));
                         onlineUserListLock.unlock();
                     });
                 }
@@ -258,7 +253,7 @@ public class Controller implements Initializable {
 //        System.out.println(onlineUserList);
 
         currentUsername.setText("Current User: " + username);
-        currentOnlineCnt.setText("Online: " + String.valueOf(onlineUserNum));
+        currentOnlineCnt.setText("Online: " + onlineUserNum);
 
         clientReceiveThread.setUsername(username);
         sendMessageQueue = new ArrayBlockingQueue<>(10);
@@ -397,7 +392,7 @@ public class Controller implements Initializable {
         }
         inputArea.clear();
         String groupName = chatList.getSelectionModel().getSelectedItem().getGroupName();
-        Message message = new Message(username, "server", groupName + " " + msg);
+        Message message = new Message(username, "user", groupName + " " + msg);
         try {
             sendMessageQueue.put(message);
         } catch (InterruptedException e) {
@@ -412,7 +407,7 @@ public class Controller implements Initializable {
     private class MessageCellFactory implements Callback<ListView<Message>, ListCell<Message>> {
         @Override
         public ListCell<Message> call(ListView<Message> param) {
-            return new ListCell<Message>() {
+            return new ListCell<>() {
 
                 @Override
                 public void updateItem(Message msg, boolean empty) {
@@ -455,7 +450,7 @@ public class Controller implements Initializable {
         onlineUserNum++;
         onlineUserListLock.unlock();
         Platform.runLater(() -> {
-            currentOnlineCnt.setText("Online: " + String.valueOf(onlineUserNum));
+            currentOnlineCnt.setText("Online: " + onlineUserNum);
             if(chatList.getSelectionModel().getSelectedItem().getInfoLabelText().equals(username)){
                 sendButton.setDisable(false);
             }
@@ -468,7 +463,7 @@ public class Controller implements Initializable {
         onlineUserNum--;
         onlineUserListLock.unlock();
         Platform.runLater(() -> {
-            currentOnlineCnt.setText("Online: " + String.valueOf(onlineUserNum));
+            currentOnlineCnt.setText("Online: " + onlineUserNum);
             if(chatList.getSelectionModel().getSelectedItem().getInfoLabelText().equals(username)){
                 sendButton.setDisable(true);
             }
@@ -493,9 +488,7 @@ public class Controller implements Initializable {
             }
         }
         chatListLock.unlock();
-        Platform.runLater(() -> {
-            chatContentList.refresh();
-        });
+        Platform.runLater(() -> chatContentList.refresh());
     }
 
     public static void addMessage(String groupName, Message message) {
@@ -505,9 +498,7 @@ public class Controller implements Initializable {
                 hBox.setTimestamp(message.getTimestamp());
                 if (chatList.getSelectionModel().getSelectedItem() != null && chatList.getSelectionModel().getSelectedItem().getGroupName().equals(groupName)) {
                     chatContentList.getItems().add(message);
-                    Platform.runLater(() -> {
-                        chatContentList.refresh();
-                    });
+                    Platform.runLater(() -> chatContentList.refresh());
                 } else if (chatList.getSelectionModel().getSelectedItem() != null && !chatList.getSelectionModel().getSelectedItem().getGroupName().equals(groupName)) {
                     hBox.setMark(true);
                 }
@@ -521,9 +512,9 @@ public class Controller implements Initializable {
     public synchronized static void sortChatList() {
         chatListLock.lock();
         //timestamp排序，大的在前
-        //根据时间排序chatlist
+        //根据时间排序chatList
         chatList.getItems().sort((o1, o2) -> {
-            return ((chatListHBox) o2).getTimestamp().compareTo(((chatListHBox) o1).getTimestamp());
+            return o2.getTimestamp().compareTo(o1.getTimestamp());
         });
         chatListLock.unlock();
         Platform.runLater(() -> {
@@ -532,7 +523,7 @@ public class Controller implements Initializable {
     }
 
     public static void threadClose() {
-        System.out.println("thread close normaly");
+        System.out.println("thread close normally");
         if (clientSendThread != null)
             clientSendThread.close();
         if (clientReceiveThread != null)

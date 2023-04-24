@@ -11,14 +11,14 @@ import static cn.edu.sustech.cs209.chatting.server.Main.*;
 
 public class ServerThread implements Runnable {
 
-    private Socket socket;
+    private final Socket socket;
     private String status;
     private String username;
 
     private ObjectInputStream in;
     private ObjectOutputStream out;
 
-    private ReentrantLock sendMsgLock = new ReentrantLock();
+    private final ReentrantLock sendMsgLock = new ReentrantLock();
 
     public ServerThread(Socket socket) {
         this.socket = socket;
@@ -86,10 +86,10 @@ public class ServerThread implements Runnable {
                         String[] users = userStr.split(" ");
                         if (users.length == 2) {
                             //私聊
-                            createPrivateGroup(users);
+                            createAndSendPrivateGroup(users);
                         } else {
                             //群聊
-                            createGroup(users);
+                            createAndSendGroup(users);
                         }
                     }
                     continue;
@@ -176,16 +176,16 @@ public class ServerThread implements Runnable {
         sendMsgLock.unlock();
     }
 
-    public void sendUser(User user) {
-        sendMsgLock.lock();
-        try {
-            out.writeObject(user);
-            out.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        sendMsgLock.unlock();
-    }
+//    public void sendUser(User user) {
+//        sendMsgLock.lock();
+//        try {
+//            out.writeObject(user);
+//            out.flush();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        sendMsgLock.unlock();
+//    }
 
     public void sendGroup(Group group) {
         sendMsgLock.lock();

@@ -17,12 +17,12 @@ public class Main {
     //private static List<Group> groupList = new ArrayList<>();
     //private static List<User> userList = new ArrayList<>();
     //private static List<User> onlineUserList = new ArrayList<>();
-    private static ConcurrentHashMap<String, ServerThread> threadList = new ConcurrentHashMap<>();
-    private static ConcurrentHashMap<String, Group> groupList = new ConcurrentHashMap<>();
-    private static ConcurrentHashMap<String, User> userList = new ConcurrentHashMap<>();
-    private static List<String> onlineUserList = new ArrayList<>();
+    private static final ConcurrentHashMap<String, ServerThread> threadList = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Group> groupList = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, User> userList = new ConcurrentHashMap<>();
+    private static final List<String> onlineUserList = new ArrayList<>();
 
-    private static ReentrantLock onlineUserListLock = new ReentrantLock();
+    private static final ReentrantLock onlineUserListLock = new ReentrantLock();
 
 
     public static void main(String[] args) {
@@ -36,26 +36,23 @@ public class Main {
         }
         System.out.println("Server started");
         //创建服务器端管理线程
-        Thread serverManager = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    Scanner scanner = new Scanner(System.in);
-                    String command = scanner.nextLine();
-                    System.out.println("Command: " + command);
-                    if (command.equals("exit")) {
-                        System.out.println("Server stopping...");
-                        try {
-                            connection.close();
-                            for (Map.Entry<String, ServerThread> entry : threadList.entrySet()) {
-                                entry.getValue().close();
-                            }
-                        } catch (SQLException e) {
-                            e.printStackTrace();
+        Thread serverManager = new Thread(() -> {
+            while (true) {
+                Scanner scanner = new Scanner(System.in);
+                String command = scanner.nextLine();
+                System.out.println("Command: " + command);
+                if (command.equals("exit")) {
+                    System.out.println("Server stopping...");
+                    try {
+                        connection.close();
+                        for (Map.Entry<String, ServerThread> entry : threadList.entrySet()) {
+                            entry.getValue().close();
                         }
-                        System.out.println("Server stopped");
-                        System.exit(0);
+                    } catch (SQLException e) {
+                        e.printStackTrace();
                     }
+                    System.out.println("Server stopped");
+                    System.exit(0);
                 }
             }
         });
@@ -109,6 +106,15 @@ public class Main {
                     Group group = new Group(groupID, groupName);
                     groupList.put(groupName, group);
                 }
+                //取组成员
+                sql = "SELECT * FROM groupMembers";
+                ResultSet resultSet2 = statement.executeQuery(sql);
+                //处理
+                while (resultSet2.next()) {
+                    String groupName = resultSet2.getString("groupName");
+                    String username = resultSet2.getString("username");
+                    groupList.get(groupName).initAddPeople(username);
+                }
                 //取消息
                 sql = "SELECT * FROM messages";
                 ResultSet resultSet0 = statement.executeQuery(sql);
@@ -127,6 +133,7 @@ public class Main {
                 resultSet.close();
                 resultSet0.close();
                 resultSet1.close();
+                resultSet2.close();
             }
         } catch (SQLException | ClassNotFoundException e) {
             System.out.println("Start failed,Error in initSQL");
@@ -233,7 +240,7 @@ public class Main {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return null;
+        return new Message();
     }
 
     public synchronized static User createUser(String username, String password) {
@@ -253,7 +260,7 @@ public class Main {
         return null;
     }
 
-    private synchronized static Group createGroup(String groupName, String[] users) {
+    private synchronized static void createAndSendGroup(String groupName, String[] users) {
         try (Statement statement = connection.createStatement()) {
             String sql = "INSERT INTO groups (groupName) VALUES ('" + groupName + "')";
             statement.executeUpdate(sql);
@@ -271,20 +278,18 @@ public class Main {
                     break;
                 }
             }
-            return group;
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return null;
     }
 
-    public synchronized static Group createGroup(String[] users) {
+    public synchronized static void createAndSendGroup(String[] users) {
         String groupName = "Group Chat " + (groupList.size() + 1);
-        return createGroup(groupName, users);
+        createAndSendGroup(groupName, users);
     }
 
-    public synchronized static Group createPrivateGroup(String[] users) {
+    public synchronized static void createAndSendPrivateGroup(String[] users) {
         String groupName = "Private Chat " + (groupList.size() + 1);
-        return createGroup(groupName, users);
+        createAndSendGroup(groupName, users);
     }
 }

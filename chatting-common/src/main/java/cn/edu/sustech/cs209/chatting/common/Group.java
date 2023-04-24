@@ -8,11 +8,10 @@ import java.util.ArrayList;
  * people number:2 for private chat, more for group chat.
  */
 public class Group implements Serializable {
-    private long groupID;
-    private String groupName;
-    private ArrayList<String> userList;
-    private int userNum;
-    private ArrayList<Message> msgList;
+    private final long groupID;
+    private final String groupName;
+    private final ArrayList<String> userList;
+    private final ArrayList<Message> msgList;
 
     private Long timestamp;
 
@@ -20,7 +19,6 @@ public class Group implements Serializable {
         this.groupID = groupID;
         this.groupName = groupName;
         this.userList = new ArrayList<>();
-        this.userNum = 0;
         this.msgList = new ArrayList<>();
         this.timestamp = timestamp;
     }
@@ -29,7 +27,6 @@ public class Group implements Serializable {
         this.groupID = groupID;
         this.groupName = groupName;
         this.userList = new ArrayList<>();
-        this.userNum = 0;
         this.msgList = new ArrayList<>();
         this.timestamp = System.currentTimeMillis();
     }
@@ -39,12 +36,6 @@ public class Group implements Serializable {
             return 0;
         }
         msgList.add(msg);
-        if(!userList.contains(msg.getSentBy())){
-            initAddPeople(msg.getSentBy());
-        }
-        if(!userList.contains(msg.getSendTo())){
-            initAddPeople(msg.getSendTo());
-        }
         return 1;
     }
 
@@ -53,7 +44,6 @@ public class Group implements Serializable {
             return 0;
         }
         userList.add(username);
-        userNum++;
         return 1;
     }
 
@@ -72,19 +62,19 @@ public class Group implements Serializable {
         return 1;
     }
 
-    public int addPeople(String username) {
-        if (userList.contains(username)) {
-            return 0;
-        }
-        userList.add(username);
-        userNum++;
-        this.timestamp = System.currentTimeMillis();
-        return 1;
-    }
+//    public int addPeople(String username) {
+//        if (userList.contains(username)) {
+//            return 0;
+//        }
+//        userList.add(username);
+//        userNum++;
+//        this.timestamp = System.currentTimeMillis();
+//        return 1;
+//    }
 
-    public long getGroupID() {
-        return groupID;
-    }
+//    public long getGroupID() {
+//        return groupID;
+//    }
 
     public String getGroupName() {
         return groupName;
@@ -98,16 +88,9 @@ public class Group implements Serializable {
         return timestamp;
     }
 
-    public int getUserNum() {
-        return userNum;
-    }
-
     public ArrayList<Message> getMsgList() {
         return msgList;
     }
 
-    public synchronized void groupBroadcast(Message msg) {
-
-    }
 
 }

@@ -7,11 +7,11 @@ import java.util.List;
  * Only used for authorization.
  */
 public class User {
-    private long userID;
-    private String username;
-    private String password;
+    private final long userID;
+    private final String username;
+    private final String password;
 
-    private List<Long> groupIDs;
+    private final List<Long> groupIDs;
 
     public User(long userID, String username, String password) {
         this.userID = userID;

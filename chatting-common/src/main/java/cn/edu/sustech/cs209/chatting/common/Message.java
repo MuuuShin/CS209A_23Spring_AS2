@@ -9,15 +9,15 @@ public class Message implements Serializable{
 
     private long msgID;
 
-    private Long timestamp;
+    private final Long timestamp;
 
-    private String sentBy;
+    private final String sentBy;
 
-    private String sendTo;
+    private final String sendTo;
 
-    private String groupName;
+    private final String groupName;
 
-    private String data;
+    private final String data;
 
     public Message(long msgID, Long timestamp, String sentBy, String sendTo, String groupName, String data) {
         this.msgID = msgID;

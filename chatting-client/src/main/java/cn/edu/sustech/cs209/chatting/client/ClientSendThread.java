@@ -1,10 +1,8 @@
 package cn.edu.sustech.cs209.chatting.client;
 
-import cn.edu.sustech.cs209.chatting.common.Message;
-
 import java.io.IOException;
 import java.io.ObjectOutputStream;
-import java.net.Socket;
+
 
 import static cn.edu.sustech.cs209.chatting.client.Controller.*;
 
@@ -13,7 +11,7 @@ import static cn.edu.sustech.cs209.chatting.client.Controller.*;
  * Only responsible for sending messages.
  */
 public class ClientSendThread implements Runnable{
-    private ObjectOutputStream out;
+    private final ObjectOutputStream out;
 
     public ClientSendThread(ObjectOutputStream out) {
         this.out = out;
@@ -22,7 +20,7 @@ public class ClientSendThread implements Runnable{
     public void run() {
         while(true){
             //获取消息
-            Object msg = null;
+            Object msg;
             try {
                 msg=sendMessageQueue.take();
             } catch (InterruptedException e) {

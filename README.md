@@ -8,7 +8,8 @@ In this assignment, you will need to implement a WeChat like program, but much s
 
 ## Quickstart
 
-Click the [use template](https://github.com/hezean/chatting/generate) to create a fork of this template - to avoid potential plagiarism dispute,
+Click the [use template](https://github.com/hezean/chatting/generate) to create a fork of this template - to avoid
+potential plagiarism dispute,
 **please be sure that your repository is made _private_ before the deadline**.
 
 You need to then clone your fork into local machine. You can then open the whole folder as a project in your
@@ -31,12 +32,12 @@ Now, the first thing you need to do is to install the parent pom into the local 
 mvn install
 ```
 
-If you are a Windows user who has not configured Maven environment variables, you can run this command in IDEA by several ways as below:
+If you are a Windows user who has not configured Maven environment variables, you can run this command in IDEA by
+several ways as below:
 
 - double click the Ctrl key in IDEA to bring up a "Run Anything" pop-up window, then enter the command
 - click the "Execute Maven Goal" button on the top of Maven side bar, then enter the command
 - simply click on the "install" option in the "Lifecycle" folder of Maven side bar
-
 
 <p align="center">
   <img  src="assets/mvn_command.jpg">
@@ -64,6 +65,7 @@ and run the `main` method to start a client.
 Note that you can start multiple clients by clicking the _run_ button several times.
 
 If you are using JDK in any higher version, please use the `javafx` plugin to run the client.
+
 ```shell
 mvn javafx:run -pl chatting-client
 ```

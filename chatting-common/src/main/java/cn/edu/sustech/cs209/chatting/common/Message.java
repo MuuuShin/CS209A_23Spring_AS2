@@ -5,76 +5,72 @@ import java.io.Serializable;
 /**
  * A class representing a message.
  */
-public class Message implements Serializable{
+public class Message implements Serializable {
 
-    private long msgID;
+  private final Long timestamp;
+  private final String sentBy;
+  private final String sendTo;
+  private final String groupName;
+  private final String data;
+  private long msgID;
 
-    private final Long timestamp;
+  public Message(long msgID, Long timestamp, String sentBy, String sendTo, String groupName, String data) {
+    this.msgID = msgID;
+    this.timestamp = timestamp;
+    this.sentBy = sentBy;
+    this.sendTo = sendTo;
+    this.groupName = groupName;
+    this.data = data;
+  }
 
-    private final String sentBy;
+  public Message(String sentBy, String sendTo, String groupName, String data) {
+    this.msgID = -1;
+    this.timestamp = System.currentTimeMillis();
+    this.sentBy = sentBy;
+    this.sendTo = sendTo;
+    this.groupName = groupName;
+    this.data = data;
+  }
 
-    private final String sendTo;
+  public Message(String sentBy, String sendTo, String data) {
+    this.msgID = -1;
+    this.timestamp = System.currentTimeMillis();
+    this.sentBy = sentBy;
+    this.sendTo = sendTo;
+    this.groupName = "Server Chat";
+    this.data = data;
+  }
 
-    private final String groupName;
+  public Message() {
+    this.msgID = -1;
+    this.timestamp = System.currentTimeMillis();
+    this.sentBy = "anonymous";
+    this.sendTo = "anonymous";
+    this.groupName = "Private Chat";
+    this.data = "empty";
+  }
 
-    private final String data;
+  public Long getTimestamp() {
+    return timestamp;
+  }
 
-    public Message(long msgID, Long timestamp, String sentBy, String sendTo, String groupName, String data) {
-        this.msgID = msgID;
-        this.timestamp = timestamp;
-        this.sentBy = sentBy;
-        this.sendTo = sendTo;
-        this.groupName = groupName;
-        this.data = data;
-    }
-    public Message(String sentBy, String sendTo, String groupName, String data) {
-        this.msgID = -1;
-        this.timestamp = System.currentTimeMillis();
-        this.sentBy = sentBy;
-        this.sendTo = sendTo;
-        this.groupName = groupName;
-        this.data = data;
-    }
+  public String getSentBy() {
+    return sentBy;
+  }
 
-    public Message(String sentBy, String sendTo, String data) {
-        this.msgID = -1;
-        this.timestamp = System.currentTimeMillis();
-        this.sentBy = sentBy;
-        this.sendTo = sendTo;
-        this.groupName = "Server Chat";
-        this.data = data;
-    }
+  public String getSendTo() {
+    return sendTo;
+  }
 
-    public Message(){
-        this.msgID = -1;
-        this.timestamp = System.currentTimeMillis();
-        this.sentBy = "anonymous";
-        this.sendTo = "anonymous";
-        this.groupName = "Private Chat";
-        this.data = "empty";
-    }
+  public String getGroupName() {
+    return groupName;
+  }
 
-    public Long getTimestamp() {
-        return timestamp;
-    }
+  public String getData() {
+    return data;
+  }
 
-    public String getSentBy() {
-        return sentBy;
-    }
-
-    public String getSendTo() {
-        return sendTo;
-    }
-
-    public String getGroupName() {
-        return groupName;
-    }
-
-    public String getData() {
-        return data;
-    }
-
-    public void setMsgID(long msgID) {
-        this.msgID = msgID;
-    }
+  public void setMsgID(long msgID) {
+    this.msgID = msgID;
+  }
 }

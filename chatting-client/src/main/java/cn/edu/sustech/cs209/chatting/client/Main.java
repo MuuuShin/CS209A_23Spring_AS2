@@ -11,18 +11,16 @@ import static cn.edu.sustech.cs209.chatting.client.Controller.threadClose;
 
 public class Main extends Application {
 
-    public static void main(String[] args) {
-        launch();
-    }
+  public static void main(String[] args) {
+    launch();
+  }
 
-    @Override
-    public void start(Stage stage) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("main.fxml"));
-        stage.setScene(new Scene(fxmlLoader.load()));
-        stage.setTitle("Chatting Client");
-        stage.show();
-        stage.setOnCloseRequest(event -> {
-            threadClose();
-        });
-    }
+  @Override
+  public void start(Stage stage) throws IOException {
+    FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("main.fxml"));
+    stage.setScene(new Scene(fxmlLoader.load()));
+    stage.setTitle("Chatting Client");
+    stage.show();
+    stage.setOnCloseRequest(event -> threadClose());
+  }
 }

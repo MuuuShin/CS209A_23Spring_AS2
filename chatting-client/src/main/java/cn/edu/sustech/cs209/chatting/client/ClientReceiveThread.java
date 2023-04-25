@@ -5,6 +5,8 @@ import cn.edu.sustech.cs209.chatting.common.Message;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+
 import static cn.edu.sustech.cs209.chatting.client.Controller.*;
 
 /**
@@ -13,21 +15,58 @@ import static cn.edu.sustech.cs209.chatting.client.Controller.*;
 public class ClientReceiveThread implements Runnable {
     private String username;
     private final ObjectInputStream in;
+    private final ObjectOutputStream out;
+    private Long lastHeartbeatTime;
+    Controller controller;
 
-
-    public ClientReceiveThread(ObjectInputStream in) {
+    public ClientReceiveThread(ObjectInputStream in, ObjectOutputStream out, Controller controller) {
         this.username = "anonymous";
         this.in = in;
+        this.out = out;
+        this.controller = controller;
     }
 
     @Override
     public void run() {
+        lastHeartbeatTime = System.currentTimeMillis();
+        //心跳包
+        new Thread(() -> {
+            while (true) {
+                //发送心跳包
+                do {
+                    try {
+                        out.writeObject("heartbeat");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                } while (System.currentTimeMillis() - lastHeartbeatTime <= 4000);
+                //心跳包超时
+                System.out.println("heartbeat timeout");
+                threadUnexpectedClose();
+
+            }
+        }).start();
         while (true) {
             //获取客户端信息，以及判断客户端状态
             Object message = null;
             try {
                 message = in.readObject();
+                if (message instanceof String) {
+                    //System.out.println("60:" + message+System.currentTimeMillis());
+                    if (message.equals("heartbeat")) {
+                        lastHeartbeatTime = System.currentTimeMillis();
+                    }
+                    continue;
+                }
+
                 if (this.username.equals("anonymous")) {
+                    //System.out.println("64:" + message);
                     receiveMessageQueue.put(message);
                     continue;
                 }
@@ -46,23 +85,27 @@ public class ClientReceiveThread implements Runnable {
                 break;
             }
             if (message instanceof Group) {
-                addGroup((Group) message);
+                System.out.println("56: Group" + ((Group) message).getGroupName());
+                controller.addGroup((Group) message);
             }
             if (message instanceof Message) {
-                Message msg=(Message)message;
-                if(msg.getSendTo().equals("server")){
-                    if(msg.getData().equals("CLOSE")){
+                Message msg = (Message) message;
+                System.out.println("56" + msg.getSentBy() + " " + msg.getSendTo() + " " + msg.getGroupName() + " " + msg.getData());
+                if (msg.getSentBy().equals("server")) {
+                    if (msg.getData().equals("CLOSE")) {
                         threadClose();
                         return;
                     }
-                    if(msg.getData().equals("ONLINE")){
-                        addOnlineUser(msg.getSentBy());
+                    if (msg.getData().equals("ONLINE")) {
+                        controller.addOnlineUser(msg.getSendTo());
+                        continue;
                     }
-                    if(msg.getData().equals("OFFLINE")){
-                        removeOnlineUser(msg.getSentBy());
+                    if (msg.getData().equals("OFFLINE")) {
+                        controller.removeOnlineUser(msg.getSendTo());
+                        continue;
                     }
                 }
-                addMessage(msg.getGroupName(), msg);
+                controller.addMessage(msg.getGroupName(), msg);
             }
         }
         threadClose();

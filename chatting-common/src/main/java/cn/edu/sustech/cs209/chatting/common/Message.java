@@ -41,7 +41,7 @@ public class Message implements Serializable{
         this.timestamp = System.currentTimeMillis();
         this.sentBy = sentBy;
         this.sendTo = sendTo;
-        this.groupName = "Private Chat";
+        this.groupName = "Server Chat";
         this.data = data;
     }
 

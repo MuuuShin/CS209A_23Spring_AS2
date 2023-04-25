@@ -54,16 +54,38 @@ public class Main {
                     System.out.println("Server stopped");
                     System.exit(0);
                 }
+                if (command.equals("socket")) {
+                    for(Map.Entry<String, ServerThread> entry : threadList.entrySet()) {
+                        System.out.println(entry.getKey() + " " + entry.getValue().getUsername() + " " + entry.getValue().getStatus());
+                        System.out.println("Socket: " + entry.getValue().getSocket().getInetAddress().getHostAddress() + ":" + entry.getValue().getSocket().getPort());
+                    }
+                }
+                if (command.equals("pull")) {
+                    for(Map.Entry<String, ServerThread> entry : threadList.entrySet()) {
+                        Message message = new Message("server","server","test");
+                        entry.getValue().sendMsg(message);
+                    }
+                }
+                if (command.equals("online")) {
+                    for (String username : onlineUserList) {
+                        System.out.println(username);
+                    }
+                }
+                if (command.equals("group")) {
+                    for (Map.Entry<String, Group> entry : groupList.entrySet()) {
+                        System.out.println(entry.getKey() + " " + entry.getValue().getGroupName());
+                    }
+                }
             }
         });
         serverManager.start();
         //创建ServerSocket
-        try (ServerSocket serverSocket = new ServerSocket(6868)) {
+        try (ServerSocket serverSocket = new ServerSocket(6869)) {
             //等待客户端连接
             while (true) {
                 Socket socket = serverSocket.accept();
                 System.out.println("Client connected:");
-                System.out.println("Now socket number: " + threadList.size() + 1);
+                System.out.println("Now socket number: " + (threadList.size() + 1));
                 //输出客户端的IP地址
                 System.out.println("Client: " + socket.getInetAddress().getHostAddress() + ":"+socket.getPort());
                 //创建线程
@@ -124,7 +146,7 @@ public class Main {
                     Long timestamp = resultSet0.getLong("timestamp");
                     String sentBy = resultSet0.getString("sentBy");
                     String sendTo = resultSet0.getString("sendTo");
-                    String groupName = resultSet0.getString("groupID");
+                    String groupName = resultSet0.getString("groupName");
                     String data = resultSet0.getString("data");
                     Message msg = new Message(msgID, timestamp, sentBy, sendTo, groupName, data);
                     groupList.get(groupName).initAddMessage(msg);
@@ -153,10 +175,11 @@ public class Main {
     public static List<Group> getGroupIncludingUser(String username) {
         List<Group> groups = new ArrayList<>();
         for (Map.Entry<String, Group> entry : groupList.entrySet()) {
-            if (entry.getKey().equals(username)) {
+            if (entry.getValue().hasMember(username)) {
                 groups.add(entry.getValue());
             }
         }
+        System.out.println("182"+groups);
         return groups;
     }
 
@@ -229,9 +252,9 @@ public class Main {
 
     public synchronized static Message processMessage(Message msg) {
         try (Statement statement = connection.createStatement()) {
-            String sql = "INSERT INTO messages (timestamp,sentBy,sendTo,groupID,data) VALUES ('" + msg.getTimestamp() + "','" + msg.getSentBy() + "','" + msg.getSendTo() + "','" + msg.getGroupName() + "','" + msg.getData() + "')";
+            String sql = "INSERT INTO messages (timestamp,sentBy,sendTo,groupName,data) VALUES ('" + msg.getTimestamp() + "','" + msg.getSentBy() + "','" + msg.getSendTo() + "','" + msg.getGroupName() + "','" + msg.getData() + "')";
             statement.executeUpdate(sql);
-            sql = "SELECT * FROM messages WHERE timestamp = '" + msg.getTimestamp() + "'";
+            sql = "SELECT * FROM messages WHERE data = '" + msg.getData() + "'";
             ResultSet resultSet = statement.executeQuery(sql);
             long msgID = resultSet.getLong("msgID");
             msg.setMsgID(msgID);
@@ -267,16 +290,25 @@ public class Main {
             sql = "SELECT * FROM groups WHERE groupName = '" + groupName + "'";
             ResultSet resultSet = statement.executeQuery(sql);
             long groupID = resultSet.getLong("groupID");
-            Group group = new Group(groupID, groupName);
-            groupList.put(groupName, group);
             resultSet.close();
+            Group group = new Group(groupID, groupName);
+            for(String user:users){
+                group.initAddPeople(user);
+            }
+            groupList.put(groupName, group);
             for (String user : users) {
+                System.out.println("user" + user);
+
                 //Message msg = new Message("server", user, groupName, "INVITE");
                 if (threadList.containsKey(user)) {
                     //threadList.get(user).sendMsg(msg);
+                    System.out.println("send to" + user + ", group" + group);
                     threadList.get(user).sendGroup(group);
-                    break;
                 }
+            }
+            for(String user:users){
+                sql = "INSERT INTO groupMembers (groupName,username) VALUES ('" + groupName + "','" + user + "')";
+                statement.executeUpdate(sql);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -285,11 +317,13 @@ public class Main {
 
     public synchronized static void createAndSendGroup(String[] users) {
         String groupName = "Group Chat " + (groupList.size() + 1);
+        System.out.println("createAndSendGroup");
         createAndSendGroup(groupName, users);
     }
 
     public synchronized static void createAndSendPrivateGroup(String[] users) {
         String groupName = "Private Chat " + (groupList.size() + 1);
+        System.out.println("createAndSendPrivate");
         createAndSendGroup(groupName, users);
     }
 }

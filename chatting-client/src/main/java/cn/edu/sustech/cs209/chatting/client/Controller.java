@@ -1,8 +1,9 @@
 package cn.edu.sustech.cs209.chatting.client;
 
-import cn.edu.sustech.cs209.chatting.common.Group;
-import cn.edu.sustech.cs209.chatting.common.Message;
+import cn.edu.sustech.cs209.chatting.common.*;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
@@ -13,6 +14,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 import javafx.util.Pair;
@@ -20,8 +22,10 @@ import javafx.util.Pair;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.net.Socket;
 import java.net.URL;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -32,21 +36,22 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Controller implements Initializable {
 
     public Label currentUsername;
-    public static Label currentOnlineCnt;
-    public static ListView<chatListHBox> chatList = new ListView<>();
+    public Label currentOnlineCnt;
+    public ListView<chatListHBox> chatList = new ListView<>();
     public TextArea inputArea;
     @FXML
-    static
-    ListView<Message> chatContentList = new ListView<>();
+    public ListView<Message> chatContentList = new ListView<>();
 
     static String username;
-    public static Button sendButton;
+    public Button sendButton;
 
     private Socket clientSocket;
 
     private ObjectInputStream in;
     private ObjectOutputStream out;
 
+    public Stage userStage;
+    public VBox vBox;
     public static BlockingQueue<Object> receiveMessageQueue;
     public static BlockingQueue<Object> sendMessageQueue;
 
@@ -66,13 +71,13 @@ public class Controller implements Initializable {
         //连接服务器
         System.out.println("Connecting to server...");
         try {
-            clientSocket = new Socket("localhost", 6868);
+            clientSocket = new Socket("localhost", 6869);
             System.out.println("Connected to server");
 
             in = new ObjectInputStream(clientSocket.getInputStream());
             out = new ObjectOutputStream(clientSocket.getOutputStream());
             receiveMessageQueue = new ArrayBlockingQueue<>(10);
-            clientReceiveThread = new ClientReceiveThread(in);
+            clientReceiveThread = new ClientReceiveThread(in, out, this);
             clientReceiveThread.start();
         } catch (Exception e) {
             System.out.println("Connecting to server failed");
@@ -181,10 +186,16 @@ public class Controller implements Initializable {
                 threadClose();
             }
         }
-        //进行初始化
+        //登录成功，进行初始化
         try {
+            //线程开
+
+            sendMessageQueue = new ArrayBlockingQueue<>(10);
+            clientSendThread = new ClientSendThread(out);
+            clientSendThread.start();
+
             Object object = receiveMessageQueue.take();
-            if (object instanceof ArrayList<?>) {
+            if (object instanceof List<?>) {
                 for (Object o : (ArrayList<?>) object) {
                     if (o instanceof String) {
                         onlineUserList.add((String) o);
@@ -198,6 +209,9 @@ public class Controller implements Initializable {
                 for (Object o : (ArrayList<?>) object) {
                     if (o instanceof Group) {
                         groupMap.put(((Group) o).getGroupName(), (Group) o);
+                        //System.out.println(((Group) o).getGroupName());
+                        //System.out.println(((Group) o).getMsgList());
+                        //System.out.println(((Group) o).getMsgList().get(0).getData());
                         groupList.add((Group) o);
                     }
                 }
@@ -208,59 +222,107 @@ public class Controller implements Initializable {
                 chatList.getItems().add(hBox);
             }
             sortChatList();
+            chatContentList.setCellFactory(new MessageCellFactory());
+            //添加当前组成员列表
+            userStage = new Stage();
+            userStage.setOnCloseRequest(event -> {
+                userStage.hide();
+            });
+            userStage.setTitle("成员");
+            vBox = new VBox();
+            vBox.setSpacing(10);
+            vBox.setPadding(new Insets(10, 10, 10, 10));
+            Scene scene = new Scene(vBox, 200, 200);
+            userStage.setScene(scene);
             //添加聊天列表监听器
             chatList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
                 if (newValue != null) {
+                    vBox.getChildren().clear();
+                    //列出群聊用户信息
+                    for (String member : newValue.getMembers()) {
+                        Label label = new Label(member);
+                        //根据在离线染色
+                        if (onlineUserList.contains(member) || member.equals(username)) {
+                            label.setTextFill(Color.GREEN);
+                        } else {
+                            label.setTextFill(Color.GRAY);
+                        }
+                        vBox.getChildren().add(label);
+                    }
+
+
                     chatContentList.getItems().clear();
                     Group group = groupMap.get(newValue.getGroupName());
-                    for (Message message : group.getMsgList()) {
-                        chatContentList.getItems().add(message);
-                    }
-                    if(newValue.getMembers().size()>2){
-                        Stage stage = new Stage();
-                        stage.setTitle("群聊成员");
-                        //列出群聊用户信息
-                        VBox vBox = new VBox();
-                        vBox.setSpacing(10);
-                        vBox.setPadding(new Insets(10, 10, 10, 10));
-                        for (String member : newValue.getMembers()) {
-                            vBox.getChildren().add(new Label(member));
-                        }
-                        Scene scene = new Scene(vBox, 200, 200);
-                        stage.setScene(scene);
-                        stage.show();
-                    }
+                    ObservableList<Message> observablelist = FXCollections.observableArrayList(group.getMsgList());
+                    chatContentList.setItems(observablelist);
+                    //System.out.println(observablelist);
                     Platform.runLater(() -> {
+                        if (oldValue == null || !oldValue.getGroupName().equals(newValue.getGroupName())) {
+                            userStage.show();
+                        }
                         newValue.setMark(false);
                         chatContentList.refresh();
                         chatContentList.scrollTo(chatContentList.getItems().size() - 1);
                         onlineUserListLock.lock();
-                        sendButton.setDisable(!onlineUserList.contains(newValue.getInfoLabelText()));
+                        sendButton.setDisable(true);
                         onlineUserListLock.unlock();
+                        inputArea.clear();
                     });
                 }
             });
             //添加输入框监听器
             inputArea.textProperty().addListener((observable, oldValue, newValue) -> {
                 sendButton.setDisable(newValue.trim().isEmpty());
+                //获取当前组
+                chatListHBox hBox = chatList.getSelectionModel().getSelectedItem();
+                if (hBox.getMembers().size() == 2) {
+                    sendButton.setDisable(!onlineUserList.contains(hBox.getInfoLabelText()));
+                }
+
             });
             System.out.println("init 3/3");
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            System.out.println("init error");
+            e.printStackTrace();
+            System.exit(1);
         }
-//        onlineUserList.add(username);
-        onlineUserNum++;
-//        System.out.println(onlineUserList);
 
+        onlineUserNum++;
+        clientReceiveThread.setUsername(username);
         currentUsername.setText("Current User: " + username);
         currentOnlineCnt.setText("Online: " + onlineUserNum);
 
-        clientReceiveThread.setUsername(username);
-        sendMessageQueue = new ArrayBlockingQueue<>(10);
-        clientSendThread = new ClientSendThread(out);
-        clientSendThread.start();
         System.out.println("init success");
-        chatContentList.setCellFactory(new MessageCellFactory());
+        Thread clientManager = new Thread(() -> {
+            while (true) {
+                Scanner scanner = new Scanner(System.in);
+                String command = scanner.nextLine();
+                System.out.println("Command: " + command);
+
+                if (command.equals("onlineUser")) {
+                    onlineUserListLock.lock();
+                    System.out.println(onlineUserList);
+                    onlineUserListLock.unlock();
+                } else if (command.equals("groupList")) {
+                    System.out.println(groupList);
+                } else if (command.equals("groupMap")) {
+                    System.out.println(groupMap);
+                } else if (command.equals("chatList")) {
+                    System.out.println(chatList.getItems());
+                } else if (command.equals("chatContentList")) {
+                    System.out.println(chatContentList.getItems());
+                } else if (command.equals("sendMessageQueue")) {
+                    System.out.println(sendMessageQueue);
+                } else if (command.equals("receiveMessageQueue")) {
+                    System.out.println(receiveMessageQueue);
+                } else if (command.equals("exit")) {
+                    threadClose();
+                } else {
+                    System.out.println("unknown command");
+                }
+            }
+        });
+        clientManager.start();
     }
 
     @FXML
@@ -272,12 +334,16 @@ public class Controller implements Initializable {
 
         onlineUserListLock.lock();
         userSel.getItems().addAll(onlineUserList);
-        userSel.getItems().addAll("test1", "test2");
         onlineUserListLock.unlock();
 
         Button okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
             user.set(userSel.getSelectionModel().getSelectedItem());
+            stage.close();
+        });
+        //关闭窗口
+        stage.setOnCloseRequest(e -> {
+            user.set(null);
             stage.close();
         });
 
@@ -288,6 +354,9 @@ public class Controller implements Initializable {
         stage.setScene(new Scene(box));
         stage.showAndWait();
 
+        if (user.get() == null) {
+            return;
+        }
         //  if the current user already chatted with the selected user, just open the chat with that user
         chatListLock.lock();
         for (chatListHBox hBox : chatList.getItems()) {
@@ -295,16 +364,21 @@ public class Controller implements Initializable {
             if (hBox.getInfoLabelText().equals(user.get())) {
                 chatList.getSelectionModel().select(hBox);
                 chatListLock.unlock();
+                System.out.println("chat exist");
                 return;
-            }
-            Message msg = new Message(username, "server", "CREATE "+user.get());
-            try {
-                sendMessageQueue.put(msg);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
         }
         chatListLock.unlock();
+        System.out.println("chat create");
+        Message msg = new Message(username, "server", "CREATE " + user.get());
+        try {
+            sendMessageQueue.put(msg);
+            System.out.println("chat put");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+
         // otherwise, create a new chat item in the left panel, the title should be the selected user's name
     }
 
@@ -324,15 +398,13 @@ public class Controller implements Initializable {
 
         Stage stage = new Stage();
         onlineUserListLock.lock();
-        int size=onlineUserList.size();
-        CheckBox[] checkBoxes = new CheckBox[size+2];
+        int size = onlineUserList.size();
+        CheckBox[] checkBoxes = new CheckBox[size];
 
-        for(int i = 0; i < size; i++) {
+        for (int i = 0; i < size; i++) {
             checkBoxes[i] = new CheckBox(onlineUserList.get(i));
         }
         onlineUserListLock.unlock();
-        checkBoxes[size] = new CheckBox("test1");
-        checkBoxes[size+1] = new CheckBox("test2");
 
         Button okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
@@ -343,7 +415,10 @@ public class Controller implements Initializable {
             }
             stage.close();
         });
-
+        //关闭窗口
+        stage.setOnCloseRequest(e -> {
+            stage.close();
+        });
         VBox box = new VBox(10);
         box.setAlignment(Pos.CENTER);
         box.setPadding(new Insets(20, 20, 20, 20));
@@ -352,27 +427,31 @@ public class Controller implements Initializable {
         stage.setScene(new Scene(box));
         stage.showAndWait();
 
+        if (selectedUsers.size() == 0) {
+            return;
+        }
         //if the current user already chatted with the selected user, just open the chat with that user
         chatListLock.lock();
         for (chatListHBox hBox : chatList.getItems()) {
-            //这里是特殊的，因为这里的infoLabel是用户名，groupName是群名，我们要对比的是用户名
             if (hBox.getMembers().equals(selectedUsers)) {
                 chatList.getSelectionModel().select(hBox);
                 chatListLock.unlock();
                 return;
             }
-            String userStr = "";
-            for (String user : selectedUsers) {
-                userStr += user + " ";
-            }
-            Message msg = new Message(username, "server", "CREATE "+userStr);
-            try {
-                sendMessageQueue.put(msg);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
         }
         chatListLock.unlock();
+        String userStr = "";
+        for (String user : selectedUsers) {
+            userStr += user + " ";
+        }
+        Message msg = new Message(username, "server", "CREATE " + userStr);
+        try {
+            sendMessageQueue.put(msg);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+
         // otherwise, create a new chat item in the left panel, the title should be the selected user's name
     }
 
@@ -385,14 +464,12 @@ public class Controller implements Initializable {
     @FXML
     public void doSendMessage() {
         String msg = inputArea.getText();
-        //做unicode表情包处理
-
         if (msg.equals("")) {
             return;
         }
         inputArea.clear();
         String groupName = chatList.getSelectionModel().getSelectedItem().getGroupName();
-        Message message = new Message(username, "user", groupName + " " + msg);
+        Message message = new Message(username, "user", groupName, msg);
         try {
             sendMessageQueue.put(message);
         } catch (InterruptedException e) {
@@ -407,7 +484,7 @@ public class Controller implements Initializable {
     private class MessageCellFactory implements Callback<ListView<Message>, ListCell<Message>> {
         @Override
         public ListCell<Message> call(ListView<Message> param) {
-            return new ListCell<>() {
+            return new ListCell<Message>() {
 
                 @Override
                 public void updateItem(Message msg, boolean empty) {
@@ -435,55 +512,78 @@ public class Controller implements Initializable {
                         wrapper.getChildren().addAll(nameLabel, msgLabel);
                         msgLabel.setPadding(new Insets(0, 0, 0, 20));
                     }
+                    Platform.runLater(() -> {
+                        setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                        setGraphic(wrapper);
+                    });
 
-                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-                    setGraphic(wrapper);
                 }
             };
         }
     }
 
 
-    public static void addOnlineUser(String username) {
+    public void addOnlineUser(String username) {
         onlineUserListLock.lock();
         onlineUserList.add(username);
         onlineUserNum++;
         onlineUserListLock.unlock();
         Platform.runLater(() -> {
+            //列出群聊用户信息
+            for (Node label : vBox.getChildren()) {
+                //根据在离线染色
+                if (label instanceof Label) {
+                    if (((Label) label).getText().equals(username)) {
+                        ((Label) label).setTextFill(Color.GREEN);
+                    }
+                }
+            }
             currentOnlineCnt.setText("Online: " + onlineUserNum);
-            if(chatList.getSelectionModel().getSelectedItem().getInfoLabelText().equals(username)){
+            if (null != chatList.getSelectionModel().getSelectedItem() && chatList.getSelectionModel().getSelectedItem().getInfoLabelText().equals(username)) {
                 sendButton.setDisable(false);
             }
         });
     }
 
-    public static void removeOnlineUser(String username) {
+    public void removeOnlineUser(String username) {
         onlineUserListLock.lock();
         onlineUserList.remove(username);
         onlineUserNum--;
         onlineUserListLock.unlock();
         Platform.runLater(() -> {
+            //列出群聊用户信息
+            for (Node label : vBox.getChildren()) {
+                //根据在离线染色
+                if (label instanceof Label) {
+                    if (((Label) label).getText().equals(username)) {
+                        ((Label) label).setTextFill(Color.GRAY);
+
+                    }
+                }
+            }
             currentOnlineCnt.setText("Online: " + onlineUserNum);
-            if(chatList.getSelectionModel().getSelectedItem().getInfoLabelText().equals(username)){
+            if (null != chatList.getSelectionModel().getSelectedItem() && chatList.getSelectionModel().getSelectedItem().getInfoLabelText().equals(username)) {
                 sendButton.setDisable(true);
             }
         });
     }
-    public static void addGroup(Group group) {
+
+    public void addGroup(Group group) {
         String name = group.getGroupName();
         groupMap.put(name, group);
-        chatListLock.lock();
         groupList.add(group);
-        chatListLock.unlock();
+        chatListLock.lock();
         Platform.runLater(() -> {
-            chatList.getItems().add(new chatListHBox(name, group.getUserList(), group.getTimestamp(), username));
+        chatList.getItems().add(new chatListHBox(name, group.getUserList(), group.getTimestamp(), username));
         });
+        chatListLock.unlock();
         sortChatList();
         //chatList选中在新Group上
         chatListLock.lock();
-        for(chatListHBox hBox:chatList.getItems()){
-            if(hBox.getGroupName().equals(name)){
-                chatList.getSelectionModel().select(hBox);
+        System.out.println("add group");
+        for (chatListHBox hBox : chatList.getItems()) {
+            if (hBox.getGroupName().equals(name)) {
+                Platform.runLater(() -> chatList.getSelectionModel().select(hBox));
                 break;
             }
         }
@@ -491,8 +591,9 @@ public class Controller implements Initializable {
         Platform.runLater(() -> chatContentList.refresh());
     }
 
-    public static void addMessage(String groupName, Message message) {
+    public void addMessage(String groupName, Message message) {
         groupMap.get(groupName).addMessage(message);
+        chatListLock.lock();
         for (chatListHBox hBox : chatList.getItems()) {
             if (hBox.getGroupName().equals(groupName)) {
                 hBox.setTimestamp(message.getTimestamp());
@@ -502,22 +603,22 @@ public class Controller implements Initializable {
                 } else if (chatList.getSelectionModel().getSelectedItem() != null && !chatList.getSelectionModel().getSelectedItem().getGroupName().equals(groupName)) {
                     hBox.setMark(true);
                 }
-
                 break;
             }
         }
+        chatListLock.unlock();
         sortChatList();
     }
 
-    public synchronized static void sortChatList() {
-        chatListLock.lock();
-        //timestamp排序，大的在前
-        //根据时间排序chatList
-        chatList.getItems().sort((o1, o2) -> {
-            return o2.getTimestamp().compareTo(o1.getTimestamp());
-        });
-        chatListLock.unlock();
+    public synchronized void sortChatList() {
         Platform.runLater(() -> {
+            chatListLock.lock();
+            //timestamp排序，大的在前
+            //根据时间排序chatList
+            chatList.getItems().sort((o1, o2) -> {
+                return o2.getTimestamp().compareTo(o1.getTimestamp());
+            });
+            chatListLock.unlock();
             chatList.refresh();
         });
     }
@@ -533,15 +634,21 @@ public class Controller implements Initializable {
     }
 
     public static void threadUnexpectedClose() {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Warning");
+            alert.setContentText("Unexpected Close, please contact with admin");
+            alert.show();
+        });
+        try {
+            Thread.sleep(4000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         if (clientSendThread != null)
             clientSendThread.close();
         if (clientReceiveThread != null)
             clientReceiveThread.close();
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle("Warning");
-        alert.setHeaderText("null");
-        alert.setContentText("server error, please contact with admin");
-        alert.showAndWait();
         Platform.exit();
         System.exit(0);
     }

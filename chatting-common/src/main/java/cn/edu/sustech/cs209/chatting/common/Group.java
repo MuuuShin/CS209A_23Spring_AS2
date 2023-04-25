@@ -52,12 +52,12 @@ public class Group implements Serializable {
             return 0;
         }
         msgList.add(msg);
-        if(!userList.contains(msg.getSentBy())){
-            initAddPeople(msg.getSentBy());
-        }
-        if(!userList.contains(msg.getSendTo())){
-            initAddPeople(msg.getSendTo());
-        }
+//        if(!userList.contains(msg.getSentBy())){
+//            initAddPeople(msg.getSentBy());
+//        }
+//        if(!userList.contains(msg.getSendTo())){
+//            initAddPeople(msg.getSendTo());
+//        }
         this.timestamp = System.currentTimeMillis();
         return 1;
     }
@@ -93,4 +93,7 @@ public class Group implements Serializable {
     }
 
 
+    public boolean hasMember(String username) {
+        return userList.contains(username);
+    }
 }

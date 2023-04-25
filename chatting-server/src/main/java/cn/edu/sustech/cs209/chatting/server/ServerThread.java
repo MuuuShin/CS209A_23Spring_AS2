@@ -4,6 +4,8 @@ import cn.edu.sustech.cs209.chatting.common.*;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
 
@@ -20,10 +22,24 @@ public class ServerThread implements Runnable {
 
     private final ReentrantLock sendMsgLock = new ReentrantLock();
 
+    private Long lastHeartbeatTime;
+
     public ServerThread(Socket socket) {
         this.socket = socket;
         this.status = "logout";
         this.username = "anonymous";
+    }
+
+    public Socket getSocket() {
+        return socket;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public String getUsername() {
+        return username;
     }
 
     @Override
@@ -37,37 +53,87 @@ public class ServerThread implements Runnable {
             e.printStackTrace();
             return;
         }
+
+        lastHeartbeatTime = System.currentTimeMillis();
+        //心跳包
+        new Thread(() -> {
+            //客户端已经断开连接
+            do {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            } while (System.currentTimeMillis() - lastHeartbeatTime <= 4000);
+            close();
+
+        }).start();
+
+        //登录循环
         while (true) {
-            //获取客户端信息，以及判断客户端状态
-            Message message = null;
+            Object msg = null;
             try {
-                message = (Message) in.readObject();
+                msg = in.readObject();
             } catch (IOException | ClassNotFoundException e) {
-                System.out.println(e.getMessage());
+                e.printStackTrace();
             }
-            if (message == null) {
+            if (msg == null) {
                 //客户端已经断开连接
                 break;
             }
+            if (msg instanceof String) {
+                String heartbeat = (String) msg;
+                if (heartbeat.equals("heartbeat")) {
+                    lastHeartbeatTime = System.currentTimeMillis();
+                    //System.out.println("88:heartbeat "+socket.getPort()+" "+System.currentTimeMillis());
+                    sendMsgLock.lock();
+                    try {
+                        out.writeObject("heartbeat");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    sendMsgLock.unlock();
+                }
+                continue;
+            }
+            Message message = (Message) msg;
             login(message);
             if (status.equals("login")) {
                 break;
             }
         }
         if (status.equals("login")) {
+
+            //消息循环
             while (true) {
-                //获取客户端信息，以及判断客户端状态
-                Message message = null;
+                Object msg = null;
                 try {
-                    message = (Message) in.readObject();
+                    msg = in.readObject();
+
                 } catch (IOException | ClassNotFoundException e) {
-                    System.out.println(e.getMessage());
+                    e.printStackTrace();
                 }
-                if (message == null) {
+                if (msg == null) {
                     //客户端已经断开连接
                     break;
                 }
-
+                if (msg instanceof String) {
+                    String heartbeat = (String) msg;
+                    if (heartbeat.equals("heartbeat")) {
+                        //System.out.println("88:heartbeat "+socket.getPort()+" "+System.currentTimeMillis());
+                        lastHeartbeatTime = System.currentTimeMillis();
+                        sendMsgLock.lock();
+                        try {
+                            out.writeObject("heartbeat");
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        sendMsgLock.unlock();
+                    }
+                    continue;
+                }
+                Message message = (Message) msg;
+                System.out.println("108: " + message.getSentBy() + " " + message.getSendTo() + " " + message.getGroupName() + " " + message.getData());
                 if (message.getSendTo().equals("server")) {
                     //客户端向服务器发送了非聊天信息
                     if (message.getData().equals("CLOSE")) {
@@ -116,7 +182,8 @@ public class ServerThread implements Runnable {
         if (user == null) {
             //用户不存在,创建
             user = createUser(username, password);
-        } else if (hasOnlineUser(username)) {
+        }
+        if (hasOnlineUser(username)) {
             //已存在用户
             Message message = new Message("server", username, "430 Login failed, user already online");
             try {
@@ -125,6 +192,7 @@ public class ServerThread implements Runnable {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            return;
         } else if (!user.getPassword().equals(password)) {
             //密码错误
             Message message = new Message("server", username, "430 Login failed, wrong password");
@@ -134,33 +202,37 @@ public class ServerThread implements Runnable {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        }else{
-            //登录成功
-            this.username = username;
-            this.status = "login";
-            addThread(username, this);
-            //发送登录成功信息
-            Message message = new Message("server", username, "230 Login successful");
-            sendMsgLock.lock();
-            try {
-                out.writeObject(message);
-                out.flush();
-                System.out.println("send login info, username: " + username+", password: "+password);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            //发送用户信息，组信息
-            try {
-                out.writeObject(getOnlineUserList());
-                out.writeObject(getGroupIncludingUser(username));
-                out.flush();
-                System.out.println("send user list and group list");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            sendMsgLock.unlock();
-            addOnlineUser(username);
+            return;
         }
+        //登录成功
+        this.username = username;
+        this.status = "login";
+        addThread(username, this);
+        //发送登录成功信息
+        Message message = new Message("server", username, "230 Login successful");
+        sendMsgLock.lock();
+        try {
+            out.writeObject(message);
+            out.flush();
+            System.out.println("send login info, username: " + username + ", password: " + password);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        //发送用户信息，组信息
+        try {
+            out.writeObject(getOnlineUserList());
+            //SerArrayList<Group> groupList1 = new SerArrayList<>();
+            //groupList1.addAll(getGroupIncludingUser(username));
+            //List<Group> groupList1 = getGroupIncludingUser(username);
+            out.writeObject(getGroupIncludingUser(username));
+            out.flush();
+            System.out.println("send user list and group list");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        sendMsgLock.unlock();
+        addOnlineUser(username);
+
 
     }
 
@@ -190,6 +262,7 @@ public class ServerThread implements Runnable {
     public void sendGroup(Group group) {
         sendMsgLock.lock();
         try {
+            System.out.println("send group: " + group.getGroupName());
             out.writeObject(group);
             out.flush();
         } catch (IOException e) {
